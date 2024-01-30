@@ -20,6 +20,9 @@ COPY . .
 # Build the application using the Gradle Wrapper
 RUN ./gradlew build --stacktrace
 
+# Unit test
+RUN ./gradlew test --stacktrace
+
 # Use a minimal base image for the runtime
 FROM adoptopenjdk:11-jre-hotspot
 
