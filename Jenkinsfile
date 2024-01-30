@@ -1,55 +1,83 @@
 pipeline {
-    agent any 
+    agent any
+
     environment {
-        DOCKER_REPO = "salmahany3010/jenkins-lab-repo"
-        OC_NAMESPACE = "salmahany"
-        OC_CONFIG = "/home/salma/Downloads/config"
-        OC_SERVER = "https://api.ocpuat.devopsconsulting.org:6443" 
-        GITHUB_REPO = "EngMohamedElEmam/new-app"
+        
+        DOCKER_REGISTRY = "salmahany3010"
+        DOCKER_IMAGE = "spring-boot"
+        imageTagApp = "build-${BUILD_NUMBER}-app"
+        imageNameapp = "${DOCKER_REGISTRY}:${imageTagApp}"
+        OPENSHIFT_PROJECT = 'salmahany'
+        GITHUB_REPO = "salmaHany01/spring-boot-jenkins"
+        OPENSHIFT_SERVER = 'https://api.ocpuat.devopsconsulting.org:6443'
+        APP_SERVICE_NAME = 'spring-boot'
+        APP_PORT = '8080'
+        APP_HOST_NAME = 'springboot.apps.ocpuat.devopsconsulting.org'
+        
     }
+
     stages {
+        
+        
         stage('Checkout') {
             steps {
                 git url: "https://github.com/${GITHUB_REPO}.git", branch: 'main'
             }
         }
-        stage('Build') {
+        
+        stage('Unit Test') {
             steps {
-                script {
-                    def dockerImageName = "${GITHUB_REPO.toLowerCase()}:latest"
-                    docker.build(dockerImageName)
-                }
+                sh "chmod +x ./gradlew"
+                
+                sh "./gradlew test --stacktrace"
             }
         }
-        stage('Push') {
+        
+        stage('Build Docker Image') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: "jenkins-docker", usernameVariable: "DOCKER_USERNAME", passwordVariable: "DOCKER_PASSWORD")]) {
-                        sh "docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD"
-                        sh "docker push my-image:${BUILD_NUMBER}"
-                    }
-                }
+                    
+                sh "chmod +x gradlew"
+                    
+                sh "docker build -t ${imageNameapp} ."
+                
+                sh "docker tag ${imageNameapp} docker.io/${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${imageTagApp}"
+               
             }
         }
-        stage('Deploy on OC') {
+        
+       
+        
+        stage('Push Image to DockerHub') {
             steps {
-                script {
-                    withCredentials([string(credentialsId: 'jenkins-oc', variable: 'OPENSHIFT_SECRET')]){
-                        sh "oc login -u salmahany -p salmahany https://api.ocpuat.devopsconsulting.org:6443"
-                        sh "oc project salmahany"
-                        sh "oc new-app \${DOCKER_REPO}:latest"
-                    }
+                withCredentials([usernamePassword(credentialsId: 'jenkins-docker', usernameVariable: 'DOCKER_REGISTRY_USERNAME', passwordVariable: 'DOCKER_REGISTRY_PASSWORD')]) {
+                   
+                    sh "echo \${DOCKER_REGISTRY_PASSWORD} | docker login -u \${DOCKER_REGISTRY_USERNAME} --password-stdin"
+                    
+                    sh "docker push docker.io/${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${imageTagApp}"
                     
                 }
             }
         }
-    }
-    post {
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-        failure {
-            echo 'Pipeline failed!'
+        
+        
+
+        stage('Deploy to OpenShift') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'openshift-login-token', variable: 'OPENSHIFT_SECRET')]) {
+                    sh "oc login --token=\${OPENSHIFT_SECRET} --server=\${OPENSHIFT_SERVER} --insecure-skip-tls-verify"
+                    }
+                    sh "oc project \${OPENSHIFT_PROJECT}"
+                    sh "oc delete dc,svc,deploy,ingress,route \${DOCKER_IMAGE} || true"
+                    sh "oc new-app ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${imageTagApp} --token=\${OPENSHIFT_SECRET}"
+                    
+                    // Expose the service 
+                    sh "oc expose service/${APP_SERVICE_NAME}"
+                    
+                    //sh "oc create route edge --service \${APP_SERVICE_NAME} --port \${APP_PORT} --hostname springboot.apps.ocpuat.devopsconsulting.org --insecure-policy Redirect"
+
+                }
+            }
         }
     }
 }
