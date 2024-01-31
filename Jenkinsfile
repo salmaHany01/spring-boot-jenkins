@@ -32,7 +32,11 @@ pipeline {
                 sh "./gradlew test --stacktrace"
             }
         }
-        
+        stage('SonarQube Analysis') {
+            withSonarQubeEnv() {
+                sh "./gradlew sonar"
+            }
+        }
         stage('Build Docker Image') {
             steps {
                     
