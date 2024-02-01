@@ -8,6 +8,15 @@ This project aims to establish a fully automated DevOps pipeline for deploying a
 <br><em>caption</em>
 </p>
 
+## Requirements
+- :white_circle: GitHub
+- :white_circle: AWS 
+- :white_circle: Terraform
+- :white_circle: Ansible
+- :white_circle: Docker
+- :white_circle: SonarQube
+- :white_circle: Openshift cluster
+
 ## Project Components
 
 ### 1. Spring Boot Application Deployment Using Jenkins on OpenShift
